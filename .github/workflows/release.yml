@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build release binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code to go module directory
+        uses: actions/checkout@v2
+
+      - name: Setup Go 1.x
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.17
+        id: go
+
+      - name: Build AMD64
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -installsuffix nocgo -vo traefik-forward-auth_amd64 ./cmd
+
+      - name: Build ARM
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm GO111MODULE=on go build -a -installsuffix nocgo -vo traefik-forward-auth_arm ./cmd
+
+      - name: Get tag name
+        run: echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: Get artifact details
+        uses: octokit/request-action@v2.x
+        id: get_release_details
+        with:
+          route: get /repos/${{github.repository}}/releases/tags/${{env.TAG}}
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Upload amd64 release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{fromJson(steps.get_release_details.outputs.data).upload_url}}
+          asset_path: traefik-forward-auth_amd64
+          asset_name: traefik-forward-auth_amd64
+          asset_content_type: application/octet-stream
+
+      - name: Upload arm release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{jsonJson(steps.get_release_details.outputs.data).upload_url}}
+          asset_path: traefik-forward-auth_arm
+          asset_name: traefik-forward-auth_arm
+          asset_content_type: application/octet-stream

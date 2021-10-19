@@ -34,6 +34,10 @@ type OAuthProvider struct {
 	ctx      context.Context
 }
 
+type token struct {
+	Token string `json:"access_token"`
+}
+
 // CopyConfig from uri
 func (r *OAuthProvider) CopyConfig(redirectURI string) oauth2.Config {
 	config := *r.Config
@@ -54,8 +58,4 @@ func (r *OAuthProvider) GetOAuthLoginURL(redirectURI, state string) string {
 func (r *OAuthProvider) GetOAuthExchangeCode(redirectURI, code string) (*oauth2.Token, error) {
 	config := r.CopyConfig(redirectURI)
 	return config.Exchange(r.ctx, code)
-}
-
-type token struct {
-	Token string `json:"accss_token"`
 }

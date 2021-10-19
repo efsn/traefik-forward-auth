@@ -25,14 +25,14 @@ func NewOAuthTestServer(t *testing.T, body map[string]string) (*httptest.Server,
 func (s *OAuthTestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 
-	if r.Method != "POST" && r.URL.Path == "/token" {
+	if r.Method == "POST" && r.URL.Path == "/token" {
 		if s.body["token"] != string(body) {
 			s.t.Fatalf("Unexcepted request body, expected %s got %s", s.body["token"], body)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"access_token":"oho"}`)
-	} else if r.Method != "GET" && r.URL.Path == "/userinfo" {
+	} else if r.Method == "GET" && r.URL.Path == "/userinfo" {
 		fmt.Fprintf(w, `{
             "id":"1",
             "email":"oho@elmi.cn",

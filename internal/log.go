@@ -8,6 +8,7 @@ import (
 
 var logger *logrus.Logger
 
+// NewDefaultLogger build default logger
 func NewDefaultLogger() *logrus.Logger {
 	logger = logrus.StandardLogger()
 	logrus.SetOutput(os.Stdout)

@@ -1,0 +1,36 @@
+version: 3
+
+services:
+  traefik:
+    image: traefik:2.5.3
+    command:
+      - --providers.docker
+      - --entryPoints.http.address=:80
+      - --entrypoints.http.middlewares=traefik-forward-auth
+    ports:
+      - "8137:80"
+      - "8138:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  whoami:
+    image: whoami
+    lables:
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost.com`)"
+
+  traefik-forward-auth:
+    image: efsn/traefik-forward-auth:v1
+    environment:
+      - PROVIDERS_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - PROVIDERS_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - SECRET_KEY=${SECRET_KEY}
+      - INSECURE_COOKIE=${INSECURE_COOKIE}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
+      - AUTH_HOST=auth.localhost.com:8137
+      - LOG_LEVEL=debug
+    labels:
+      - "traefik.http.routers.traefik-forward-auth.rule=Host(`auth.localhost.com`)"
+      - "traefik.http.middlewares.traefik-forward-auth.forwardauth.address=http://traefik-forward-auth:5137"
+      - "traefik.http.middlewares.traefik-forward-auth.forwardauth.authResponseHeader=X-Forwarded-User"
+      - "traefik.http.services.traefik-forward-auth.loadbalancer.server.port=5137"
+

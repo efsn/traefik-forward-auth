@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -23,10 +22,10 @@ var conf *Conf
 // Conf auth global configuration
 type Conf struct {
 	LogLevel  string `long:"log-level" env:"LOG_LEVEL" default:"warn" choice:"trace" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" description:"Log level"`
-	LogFormat string `long:"log-format"  env:"LOG_FORMAT" default:"text" choice:"text" choice:"json" choice:"pretty" description:"Log format"`
+	LogFormat string `long:"log-format" env:"LOG_FORMAT" default:"text" choice:"text" choice:"json" choice:"pretty" description:"Log format"`
 
 	AuthHost               string               `long:"auth-host" env:"AUTH_HOST" description:"Single host to use when returning from 3rd party auth"`
-	Configure              func(s string) error `long:"config" env:"CONFIG" description:"Path to config file" json:"-"`
+	Configure              func(s string) error `long:"conf" env:"CONF" description:"Path to conf file" json:"-"`
 	CookieDomains          []CookieDomain       `long:"cookie-domain" env:"COOKIE_DOMAIN" env-delim:"," description:"Domain to set auth cookie on, can be set multiple times"`
 	InsecureCookie         bool                 `long:"insecure-cookie" env:"INSECURE_COOKIE" description:"Use insecure cookies"`
 	CookieName             string               `long:"cookie-name" env:"COOKIE_NAME" default:"_forward_auth" description:"Cookie Name"`
@@ -118,16 +117,16 @@ func NewConf(args []string) (*Conf, error) {
 // Validate check conf
 func (r *Conf) Validate() {
 	if len(r.Secret) == 0 {
-		log.Fatal("\"secret\" option must be set")
+		logger.Fatal("\"secret\" option must be set")
 	}
 
 	if err := r.setupProvider(r.DefaultProvider); err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	for _, rule := range r.Rules {
 		if err := rule.Validate(r); err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 	}
 }
@@ -190,19 +189,25 @@ func (r *Conf) setup() error {
 	}
 
 	// Backwards compatability
-	if r.CookieSecureLegacy != "" && r.SecretString == "" {
+	if r.CookieSecretLegacy != "" && r.SecretString == "" {
 		fmt.Println("cookie-secret conf option is deprecated, please use secret")
-		r.SecretString = r.CookieSecureLegacy
+		r.SecretString = r.CookieSecretLegacy
 	}
 
+	// start: refactor to profile default provider
 	if r.ClientIDLegacy != "" {
-		r.Providers.Google.ClientID = r.ClientSecretLegacy
+		r.Providers.Google.ClientID = r.ClientIDLegacy
+	}
+
+	if r.ClientSecretLegacy != "" {
+		r.Providers.Google.ClientSecret = r.ClientSecretLegacy
 	}
 
 	if r.PromptLegacy != "" {
 		fmt.Println("prompt conf option is deprecated, please use providers.google.prompt")
 		r.Providers.Google.Prompt = r.PromptLegacy
 	}
+	// end: refactor to profile default provider
 
 	if r.CookieSecureLegacy != "" {
 		fmt.Println("cookie-secure conf option is deprecated, please use insecure-cookie")
@@ -257,7 +262,7 @@ func (r *Conf) parseUnknownFlag(opt string, arg flags.SplitArgument, args []stri
 	if len(parts) == 3 && parts[0] == "rule" {
 		name := parts[1]
 		if len(name) == 0 {
-			return args, errors.New("route name is  required")
+			return args, errors.New("route name is required")
 		}
 
 		v, ok := arg.Value()

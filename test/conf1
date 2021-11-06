@@ -1,0 +1,3 @@
+url-path=2
+rule.2.action=auth
+rule.2.rule=Host(`2.com`) && Path(`/2`)

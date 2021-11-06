@@ -1,0 +1,5 @@
+cookie-name=inicookiename
+csrf-cookie-name=inicsrfcookiename
+url-path=1
+rule.1.action=allow
+rule.1.rule=PathPrefix(`/1`)

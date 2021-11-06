@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik-forward-auth
+  labels:
+    app: traefik-forward-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik-forward-auth
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: traefik-forward-auth
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: traefik-forward-auth
+          image: efsn/traefik-forward-auth:v1
+          # resources:
+          #   limits:
+          #     memory: "128Mi"
+          #     cpu: "500m"
+          ports:
+            - containerPort: 5137
+              protocol: TCP
+          env:
+            - name: DOMAIN
+              value: "elmi.cn"
+            - name: INSECURE_COOKIE
+              value: "true"
+            - name: PROVIDERS_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-forward-auth-secrets
+                  key: traefik-forward-auth-google-client-id
+            - name: PROVIDERS_GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-forward-auth-secrets
+                  key: traefik-forward-auth-google-client-secret
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-forward-auth-secrets
+                  key: traefik-forward-auth-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-forward-auth
+  labels:
+    app: traefik-forward-auth
+spec:
+  type: ClusterIP
+  selector:
+    app: traefik-forward-auth
+  ports:
+    - port: 5137
+      targetPort: 5137
+      protocol: TCP
+      name: auth-http
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth:5137
+    authResponseHeaders:
+      - X-Forwarded-User
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: traefik-forward-auth-secrets
+  labels:
+    app: traefik-forward-auth
+type: Opaque
+data:
+  traefik-forward-auth-google-client-id: base64-client-id
+  traefik-forward-auth-google-client-secret: base64-client-secret
+  traefik-forward-auth-secret: base64-secret

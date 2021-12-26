@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfDefaults(t *testing.T) {
+func TestConfigDefaults(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewConf([]string{})
+	c, err := NewConfig([]string{})
 
 	assert.Nil(err)
 	assert.Equal("warn", c.LogLevel)
@@ -35,9 +35,9 @@ func TestConfDefaults(t *testing.T) {
 	assert.Equal("select_account", c.Providers.Google.Prompt)
 }
 
-func TestConfParseArgs(t *testing.T) {
+func TestConfigParseArgs(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewConf([]string{
+	c, err := NewConfig([]string{
 		"--cookie-name=cookiename",
 		"--csrf-cookie-name", "\"csrfcookiename\"",
 		"--default-provider", "\"oidc\"",
@@ -68,25 +68,25 @@ func TestConfParseArgs(t *testing.T) {
 	}, c.Rules)
 }
 
-func TestConfParseUnknownFlags(t *testing.T) {
-	_, err := NewConf([]string{"--unknown=_oauthpath2"})
+func TestConfigParseUnknownFlags(t *testing.T) {
+	_, err := NewConfig([]string{"--unknown=_oauthpath2"})
 
 	if assert.Error(t, err) {
 		assert.Equal(t, "unknown flag: unknown", err.Error())
 	}
 }
 
-func TestConfParseRuleError(t *testing.T) {
+func TestConfigParseRuleError(t *testing.T) {
 	assert := assert.New(t)
 
-	_, err := NewConf([]string{
+	_, err := NewConfig([]string{
 		"--rule..action=auth",
 	})
 
 	if assert.Error(err) {
 		assert.Equal("route name is required", err.Error())
 	}
-	c, err := NewConf([]string{
+	c, err := NewConfig([]string{
 		"--rule.1.action=",
 	})
 	if assert.Error(err) {
@@ -95,9 +95,9 @@ func TestConfParseRuleError(t *testing.T) {
 	assert.Equal(map[string]*Rule{}, c.Rules)
 }
 
-func TestConfFlagBackwardsCompatability(t *testing.T) {
+func TestConfigFlagBackwardsCompatability(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewConf([]string{
+	c, err := NewConfig([]string{
 		"--client-id=clientid",
 		"--client-secret=clientsecret",
 		"--prompt=prompt",
@@ -144,17 +144,17 @@ func TestConfFlagBackwardsCompatability(t *testing.T) {
 	assert.Equal("false", c.CookieSecureLegacy)
 	assert.True(c.InsecureCookie, "--cookie-secure should set insecure-cookie to true")
 
-	c, err = NewConf([]string{"--cookie-secure=TRUE"})
+	c, err = NewConfig([]string{"--cookie-secure=TRUE"})
 	assert.Nil(err)
 	assert.Equal("TRUE", c.CookieSecureLegacy)
 	assert.False(c.InsecureCookie, "--cookie-secure=TRUE should set insecure-cookie to false")
 }
 
-func TestConfParseIni(t *testing.T) {
+func TestConfigParseIni(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewConf([]string{
-		"--conf=../test/conf0",
-		"--conf=../test/conf1",
+	c, err := NewConfig([]string{
+		"--config=../test/conf0",
+		"--config=../test/conf1",
 		"--csrf-cookie-name=csrfcookiename",
 	})
 	require.Nil(t, err)
@@ -175,10 +175,10 @@ func TestConfParseIni(t *testing.T) {
 		}}, c.Rules)
 }
 
-func TestConfFileBackwardsComatability(t *testing.T) {
+func TestConfigFileBackwardsComatability(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewConf([]string{
-		"--conf=../test/conf-legacy",
+	c, err := NewConfig([]string{
+		"--config=../test/conf-legacy",
 	})
 	require.Nil(t, err)
 
@@ -186,7 +186,7 @@ func TestConfFileBackwardsComatability(t *testing.T) {
 	assert.Equal("auth.legacy.com", c.AuthHost, "variable in legacy conf file should be read")
 }
 
-func TestConfParseEnvironment(t *testing.T) {
+func TestConfigParseEnvironment(t *testing.T) {
 	assert := assert.New(t)
 	os.Setenv("COOKIE_NAME", "env_cookie_name")
 	os.Setenv("PROVIDERS_GOOGLE_CLIENT_ID", "env_client_id")
@@ -194,7 +194,7 @@ func TestConfParseEnvironment(t *testing.T) {
 	os.Setenv("DOMAIN", "test2.com,elmi.cn")
 	os.Setenv("WHITELIST", "test3.com,elmi.cn")
 
-	c, err := NewConf([]string{})
+	c, err := NewConfig([]string{})
 	assert.Nil(err)
 	assert.Equal("env_cookie_name", c.CookieName, "variable should be read from environment")
 	assert.Equal("env_client_id", c.Providers.Google.ClientID, "namespace variable should be read from environment")
@@ -212,7 +212,7 @@ func TestConfParseEnvironment(t *testing.T) {
 	os.Unsetenv("WHITELIST")
 }
 
-func TestConfParseEnvironmentBackwardsCompatability(t *testing.T) {
+func TestConfigParseEnvironmentBackwardsCompatability(t *testing.T) {
 	assert := assert.New(t)
 	vars := map[string]string{
 		"CLIENT_ID":      "clientid",
@@ -229,7 +229,7 @@ func TestConfParseEnvironmentBackwardsCompatability(t *testing.T) {
 	for k, v := range vars {
 		os.Setenv(k, v)
 	}
-	c, err := NewConf([]string{})
+	c, err := NewConfig([]string{})
 	require.Nil(t, err)
 
 	expected1 := []CookieDomain{
@@ -257,7 +257,7 @@ func TestConfParseEnvironmentBackwardsCompatability(t *testing.T) {
 	assert.Equal("false", c.CookieSecureLegacy)
 	assert.True(c.InsecureCookie, "--cookie-secure=false should set insecure-cookie true")
 
-	c, err = NewConf([]string{"--cookie-secure=TRUE"})
+	c, err = NewConfig([]string{"--cookie-secure=TRUE"})
 	assert.Nil(err)
 	assert.Equal("TRUE", c.CookieSecureLegacy)
 	assert.False(c.InsecureCookie, "--cookie-secure=TRUE should set insecure-cookie false")
@@ -267,9 +267,9 @@ func TestConfParseEnvironmentBackwardsCompatability(t *testing.T) {
 	}
 }
 
-func TestConfTransformation(t *testing.T) {
+func TestConfigTransformation(t *testing.T) {
 	assert := assert.New(t)
-	c, err := NewConf([]string{
+	c, err := NewConfig([]string{
 		"--url-path=_oauthpath",
 		"--secret=clientsecret",
 		"--lifetime=200",
@@ -283,13 +283,13 @@ func TestConfTransformation(t *testing.T) {
 	assert.Equal(time.Second*time.Duration(200), c.Lifetime, "lifetime should be read and converted to duration")
 }
 
-func TestConfValidate(t *testing.T) {
+func TestConfigValidate(t *testing.T) {
 	assert := assert.New(t)
 	var hook *test.Hook
 	logger, hook = test.NewNullLogger()
 	logger.ExitFunc = func(int) {}
 
-	c, _ := NewConf([]string{
+	c, _ := NewConfig([]string{
 		"--rule.1.action=bad",
 	})
 	c.Validate()
@@ -308,7 +308,7 @@ func TestConfValidate(t *testing.T) {
 
 	hook.Reset()
 
-	c, _ = NewConf([]string{
+	c, _ = NewConfig([]string{
 		"--secret=cookiesecret",
 		"--providers.google.client-id=id",
 		"--providers.google.client-secret=secret",
@@ -324,9 +324,9 @@ func TestConfValidate(t *testing.T) {
 	assert.Equal(logrus.FatalLevel, logs[0].Level)
 }
 
-func TestConfGetProvider(t *testing.T) {
+func TestConfigGetProvider(t *testing.T) {
 	assert := assert.New(t)
-	c, _ := NewConf([]string{})
+	c, _ := NewConfig([]string{})
 
 	p, err := c.GetProvider("google")
 	assert.Nil(err)
@@ -346,9 +346,9 @@ func TestConfGetProvider(t *testing.T) {
 	}
 }
 
-func TestConfigGetConfiguredProvider(t *testing.T) {
+func TestConfigigGetConfiguredProvider(t *testing.T) {
 	assert := assert.New(t)
-	c, _ := NewConf([]string{})
+	c, _ := NewConfig([]string{})
 
 	p, err := c.GetConfiguredProvider("google")
 	assert.Nil(err)
@@ -360,7 +360,7 @@ func TestConfigGetConfiguredProvider(t *testing.T) {
 	}
 }
 
-func TestConfigCommaSeparatedList(t *testing.T) {
+func TestConfigigCommaSeparatedList(t *testing.T) {
 	assert := assert.New(t)
 	list := CommaSeparatedList{}
 

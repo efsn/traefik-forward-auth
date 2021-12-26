@@ -6,14 +6,25 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var logger *logrus.Logger
+var logger = NewDefaultLogger()
+
+// GetLogger get logger
+func GetLogger() *logrus.Logger {
+	return logger
+}
 
 // NewDefaultLogger build default logger
 func NewDefaultLogger() *logrus.Logger {
-	logger = logrus.StandardLogger()
-	logrus.SetOutput(os.Stdout)
+	log := logrus.StandardLogger()
+	log.SetOutput(os.Stdout)
+	if config != nil {
+		setupLogger(config)
+	}
+	return log
+}
 
-	switch conf.LogFormat {
+func setupLogger(cfg *Config) {
+	switch cfg.LogFormat {
 	case "pretty":
 		break
 	case "json":
@@ -25,7 +36,7 @@ func NewDefaultLogger() *logrus.Logger {
 		})
 	}
 
-	switch conf.LogLevel {
+	switch cfg.LogLevel {
 	case "trace":
 		logrus.SetLevel(logrus.TraceLevel)
 	case "debug":
@@ -42,5 +53,4 @@ func NewDefaultLogger() *logrus.Logger {
 	default:
 		logrus.SetLevel(logrus.WarnLevel)
 	}
-	return logger
 }

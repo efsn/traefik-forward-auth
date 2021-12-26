@@ -13,7 +13,7 @@ import (
 
 func TestAuthValidateCookie(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 	rq, _ := http.NewRequest("GeT", "https://elmi.cn", nil)
 	ck := &http.Cookie{}
 
@@ -41,14 +41,14 @@ func TestAuthValidateCookie(t *testing.T) {
 		assert.Equal("Invalid cookie mac", err.Error())
 	}
 
-	conf.Lifetime = time.Second * time.Duration(-1)
+	config.Lifetime = time.Second * time.Duration(-1)
 	ck = MakeCookie(rq, "oho@elmi.cn")
 	_, err = ValidateCookie(rq, ck)
 	if assert.Error(err) {
 		assert.Equal("Cookie has expired", err.Error())
 	}
 
-	conf.Lifetime = time.Second * time.Duration(10)
+	config.Lifetime = time.Second * time.Duration(10)
 	ck = MakeCookie(rq, "oho@elmi.cn")
 	email, err := ValidateCookie(rq, ck)
 	assert.Nil(err, "valid request  should  not return an error")
@@ -57,28 +57,28 @@ func TestAuthValidateCookie(t *testing.T) {
 
 func TestAuthValidateEmail(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 
 	b := ValidateEmail("test@elmi.cn", "test")
 	assert.True(b, "should allow any domain if email domain is not defined")
 
-	conf.Domains = []string{"elmi.cn"}
+	config.Domains = []string{"elmi.cn"}
 	b = ValidateEmail("elmi@test.cn", "test")
 	assert.False(b, "should not allow user from another domain")
 
 	b = ValidateEmail("test@elmi.cn", "test")
 	assert.True(b, "should allow user from allowed domain")
 
-	conf.Domains = []string{}
-	conf.Whitelist = []string{"test@elmi.cn"}
+	config.Domains = []string{}
+	config.Whitelist = []string{"test@elmi.cn"}
 	b = ValidateEmail("test@elmi1.cn", "test")
 	assert.False(b, "should not allow user not in whitelist")
 	b = ValidateEmail("test@elmi.cn", "test")
 	assert.True(b, "should allow user in whitelist")
 
-	conf.Domains = []string{"test.cn"}
-	conf.Whitelist = []string{"test@elmi.cn"}
-	conf.MatchWhitelistOrDomain = false
+	config.Domains = []string{"test.cn"}
+	config.Whitelist = []string{"test@elmi.cn"}
+	config.MatchWhitelistOrDomain = false
 	b = ValidateEmail("test@elmi1.cn", "test")
 	assert.False(b, "should not allow user not in")
 	b = ValidateEmail("test@test.cn", "test")
@@ -86,9 +86,9 @@ func TestAuthValidateEmail(t *testing.T) {
 	b = ValidateEmail("test@elmi.cn", "test")
 	assert.True(b, "should allow user in whitelist")
 
-	conf.Domains = []string{"test.cn"}
-	conf.Whitelist = []string{"test@elmi.cn"}
-	conf.MatchWhitelistOrDomain = true
+	config.Domains = []string{"test.cn"}
+	config.Whitelist = []string{"test@elmi.cn"}
+	config.MatchWhitelistOrDomain = true
 	b = ValidateEmail("test@elmi1.cn", "test")
 	assert.False(b, "should not allow user not in")
 	b = ValidateEmail("test@test.cn", "test")
@@ -99,7 +99,7 @@ func TestAuthValidateEmail(t *testing.T) {
 
 func TestAuthValidateCSRFCookie(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 	ck := &http.Cookie{}
 	state := ""
 
@@ -142,7 +142,7 @@ func TestAuthNonce(t *testing.T) {
 
 func TestRedirectURI(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 	rq := httptest.NewRequest("GET", "https://app.elmi.cn/hi", nil)
 	rq.Header.Add("X-Forward-Proto", "https")
 
@@ -152,15 +152,15 @@ func TestRedirectURI(t *testing.T) {
 	assert.Equal("app.elmi.cn", uri.Host)
 	assert.Equal("/_oauth", uri.Path)
 
-	conf.AuthHost = "auth.elmi.cn"
+	config.AuthHost = "auth.elmi.cn"
 	uri, err = url.Parse(redirectURI(rq))
 	assert.Nil(err)
 	assert.Equal("https", uri.Scheme)
 	assert.Equal("app.elmi.cn", uri.Host)
 	assert.Equal("/_oauth", uri.Path)
 
-	conf.AuthHost = "auth.elmi.cn"
-	conf.CookieDomains = []CookieDomain{*NewCookieDomain("elmi.cn")}
+	config.AuthHost = "auth.elmi.cn"
+	config.CookieDomains = []CookieDomain{*NewCookieDomain("elmi.cn")}
 
 	uri, err = url.Parse(redirectURI(rq))
 	assert.Nil(err)
@@ -171,7 +171,7 @@ func TestRedirectURI(t *testing.T) {
 
 func TestAuthMakeCookie(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 	rq, _ := http.NewRequest("GET", "http://app.elmi.cn", nil)
 	rq.Header.Add("X-Forward-Host", "app.elmi.cn")
 
@@ -185,11 +185,11 @@ func TestAuthMakeCookie(t *testing.T) {
 	assert.Equal("app.elmi.cn", ck.Domain)
 	assert.True(ck.Secure)
 
-	expires := time.Now().Local().Add(conf.Lifetime)
+	expires := time.Now().Local().Add(config.Lifetime)
 	assert.WithinDuration(expires, ck.Expires, time.Second*10)
 
-	conf.CookieName = "test"
-	conf.InsecureCookie = true
+	config.CookieName = "test"
+	config.InsecureCookie = true
 	ck = MakeCookie(rq, "test@elmi.cn")
 	assert.Equal("test", ck.Name)
 	assert.False(ck.Secure)
@@ -197,7 +197,7 @@ func TestAuthMakeCookie(t *testing.T) {
 
 func TestAuthMakeCSRFCookie(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 	rq, _ := http.NewRequest("GET", "https://test.elmi.cn", nil)
 	rq.Header.Add("X-Forward-Host", "test.elmi.cn")
 
@@ -205,13 +205,13 @@ func TestAuthMakeCSRFCookie(t *testing.T) {
 	assert.Equal("_forward_auth_csrf_123456", ck.Name)
 	assert.Equal("test.elmi.cn", ck.Domain)
 
-	conf.CookieDomains = []CookieDomain{*NewCookieDomain("elmi.cn")}
+	config.CookieDomains = []CookieDomain{*NewCookieDomain("elmi.cn")}
 	ck = MakeCSRFCookie(rq, "321123456789012345678901234567890")
 	assert.Equal("_forward_auth_csrf_321123", ck.Name)
 	assert.Equal("test.elmi.cn", ck.Domain)
 
-	conf.AuthHost = "auth.elmi.cn"
-	conf.CookieDomains = []CookieDomain{*NewCookieDomain("elmi.cn")}
+	config.AuthHost = "auth.elmi.cn"
+	config.CookieDomains = []CookieDomain{*NewCookieDomain("elmi.cn")}
 	ck = MakeCSRFCookie(rq, "2123456789012345678901234567890")
 	assert.Equal("_forward_auth_csrf_212345", ck.Name)
 	assert.Equal("elmi.cn", ck.Domain)
@@ -231,7 +231,7 @@ func TestAuthMakeState(t *testing.T) {
 
 func TestAuthClearCSRFCookie(t *testing.T) {
 	assert := assert.New(t)
-	conf, _ = NewConf([]string{})
+	config, _ = NewConfig([]string{})
 	rq, _ := http.NewRequest("GET", "https://elmi.cn", nil)
 	ck := ClearCSRFCookie(rq, &http.Cookie{Name: "testCSRFCookie"})
 	assert.Equal("testCSRFCookie", ck.Name)

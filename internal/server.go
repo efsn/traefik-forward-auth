@@ -43,11 +43,11 @@ func (r *Server) AllowHandler(rule string) http.HandlerFunc {
 
 // AuthHandler authorize request
 func (r *Server) AuthHandler(provider, rule string) http.HandlerFunc {
-	p, _ := conf.GetConfiguredProvider(provider)
+	p, _ := config.GetConfiguredProvider(provider)
 	return func(rw http.ResponseWriter, rq *http.Request) {
 		log := r.logger(rq, "Auth", rule, "Authenticating request")
 
-		ck, err := rq.Cookie(conf.CookieName)
+		ck, err := rq.Cookie(config.CookieName)
 		if err != nil {
 			r.authRedirect(log, rw, rq, p)
 			return
@@ -105,7 +105,7 @@ func (r *Server) AuthCallbackHandler() http.HandlerFunc {
 			return
 		}
 
-		p, err := conf.GetConfiguredProvider(name)
+		p, err := config.GetConfiguredProvider(name)
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"error":       err,
@@ -148,8 +148,8 @@ func (r *Server) LogoutHandler() http.HandlerFunc {
 		http.SetCookie(rw, ClearCookie(rq))
 		log := r.logger(rq, "Logout", "default", "Handling logout")
 		log.Info("Logout user")
-		if conf.LogoutRedirect != "" {
-			http.Redirect(rw, rq, conf.LogoutRedirect, http.StatusTemporaryRedirect)
+		if config.LogoutRedirect != "" {
+			http.Redirect(rw, rq, config.LogoutRedirect, http.StatusTemporaryRedirect)
 		} else {
 			http.Error(rw, "You have logout", 401)
 		}
@@ -163,20 +163,20 @@ func (r *Server) setup() {
 		logger.Fatal(err)
 	}
 
-	for k, v := range conf.Rules {
-		matchRule := v.formattedRule()
+	for k, v := range config.Rules {
+		matchRule := v.format()
 		if v.Action == "allow" {
 			r.router.AddRoute(matchRule, 1, r.AllowHandler(k))
 		} else {
 			r.router.AddRoute(matchRule, 1, r.AuthHandler(v.Provider, k))
 		}
 
-		r.router.Handle(conf.Path, r.AuthCallbackHandler())
-		r.router.Handle(conf.Path+"/logout", r.LogoutHandler())
-		if conf.DefaultAction == "allow" {
+		r.router.Handle(config.Path, r.AuthCallbackHandler())
+		r.router.Handle(config.Path+"/logout", r.LogoutHandler())
+		if config.DefaultAction == "allow" {
 			r.router.NewRoute().Handler(r.AllowHandler("default"))
 		} else {
-			r.router.NewRoute().Handler(r.AuthHandler(conf.DefaultProvider, "defaut"))
+			r.router.NewRoute().Handler(r.AuthHandler(config.DefaultProvider, "defaut"))
 		}
 	}
 }
@@ -209,7 +209,7 @@ func (r *Server) authRedirect(log *logrus.Entry, rw http.ResponseWriter, rq *htt
 
 	csrf := MakeCSRFCookie(rq, nonce)
 	http.SetCookie(rw, csrf)
-	if !conf.InsecureCookie && rq.Header.Get("X-Forwarded-Proto") != "https" {
+	if !config.InsecureCookie && rq.Header.Get("X-Forwarded-Proto") != "https" {
 		log.Warn("You are using \"secure\" cookies for a request that was not received via https. Which should either redirect to https or pass the \"insecure-cookie\" cookie option to permit cookies via http.")
 	}
 

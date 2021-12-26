@@ -1,14 +1,14 @@
 FROM golang:1.17-alpine as build
 
 # Setup
-RUN mkdir -p /go/github.com/efsn/traefik-forward-auth
-WORKDIR /go/github.com/efsn/traefik-forward-auth
+RUN mkdir -p /github.com/efsn/traefik-forward-auth
+WORKDIR /github.com/efsn/traefik-forward-auth
 
 # Add libraries
 RUN apk add --no-cache git
 
 # Copy & build
-ADD . /go/github.com/efsn/traefik-forward-auth/
+ADD . /github.com/efsn/traefik-forward-auth/
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -installsuffix nocgo -o /traefik-forward-auth github.com/efsn/traefik-forward-auth/cmd
 
 # Copy into scratch container

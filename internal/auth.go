@@ -117,10 +117,10 @@ func ValidateCookie(r *http.Request, c *http.Cookie) (string, error) {
 
 // ValidateEmail check email
 func ValidateEmail(email, ruleName string) bool {
-	whitelist := conf.Whitelist
-	domains := conf.Domains
+	whitelist := config.Whitelist
+	domains := config.Domains
 
-	if rule, ok := conf.Rules[ruleName]; ok {
+	if rule, ok := config.Rules[ruleName]; ok {
 		if len(rule.Whitelist) > 0 || len(rule.Domains) > 0 {
 			whitelist = rule.Whitelist
 			domains = rule.Domains
@@ -136,7 +136,7 @@ func ValidateEmail(email, ruleName string) bool {
 			return true
 		}
 
-		if !conf.MatchWhitelistOrDomain {
+		if !config.MatchWhitelistOrDomain {
 			return false
 		}
 	}
@@ -186,18 +186,18 @@ func returnURL(r *http.Request) string {
 func redirectURI(r *http.Request) string {
 	if use, _ := useAuthDomain(r); use {
 		p := r.Header.Get("X-Forward-Proto")
-		return fmt.Sprintf("%s://%s%s", p, conf.AuthHost, conf.Path)
+		return fmt.Sprintf("%s://%s%s", p, config.AuthHost, config.Path)
 	}
-	return fmt.Sprintf("%s%s", redirectBase(r), conf.Path)
+	return fmt.Sprintf("%s%s", redirectBase(r), config.Path)
 }
 
 func useAuthDomain(r *http.Request) (bool, string) {
-	if conf.AuthHost == "" {
+	if config.AuthHost == "" {
 		return false, ""
 	}
 
 	reqMatch, reqHost := matchCookieDomains(r.Host)
-	authMatch, authHost := matchCookieDomains(conf.AuthHost)
+	authMatch, authHost := matchCookieDomains(config.AuthHost)
 	return reqMatch && authMatch && reqHost == authHost, reqHost
 }
 
@@ -208,12 +208,12 @@ func MakeCookie(r *http.Request, email string) *http.Cookie {
 	v := fmt.Sprintf("%s|%d|%s", mac, expires.Unix(), email)
 
 	return &http.Cookie{
-		Name:     conf.CookieName,
+		Name:     config.CookieName,
 		Value:    v,
 		Path:     "/",
 		Domain:   cookieDomain(r),
 		HttpOnly: true,
-		Secure:   !conf.InsecureCookie,
+		Secure:   !config.InsecureCookie,
 		Expires:  expires,
 	}
 }
@@ -221,12 +221,12 @@ func MakeCookie(r *http.Request, email string) *http.Cookie {
 // ClearCookie check cookie
 func ClearCookie(r *http.Request) *http.Cookie {
 	return &http.Cookie{
-		Name:     conf.CookieName,
+		Name:     config.CookieName,
 		Value:    "",
 		Path:     "/",
 		Domain:   cookieDomain(r),
 		HttpOnly: true,
-		Secure:   !conf.InsecureCookie,
+		Secure:   !config.InsecureCookie,
 		Expires:  time.Now().Local().Add(time.Hour * -1),
 	}
 }
@@ -239,7 +239,7 @@ func MakeCSRFCookie(r *http.Request, nonce string) *http.Cookie {
 		Path:     "/",
 		Domain:   csrfCookieDomain(r),
 		HttpOnly: true,
-		Secure:   !conf.InsecureCookie,
+		Secure:   !config.InsecureCookie,
 		Expires:  time.Now().Local().Add(time.Hour * 1),
 	}
 }
@@ -252,7 +252,7 @@ func ClearCSRFCookie(r *http.Request, c *http.Cookie) *http.Cookie {
 		Path:     "/",
 		Domain:   csrfCookieDomain(r),
 		HttpOnly: true,
-		Secure:   !conf.InsecureCookie,
+		Secure:   !config.InsecureCookie,
 		Expires:  time.Now().Local().Add(time.Hour * -1),
 	}
 }
@@ -324,7 +324,7 @@ func csrfCookieDomain(r *http.Request) string {
 
 func matchCookieDomains(domain string) (bool, string) {
 	p := strings.Split(domain, ":")
-	for _, v := range conf.CookieDomains {
+	for _, v := range config.CookieDomains {
 		if v.Match(p[0]) {
 			return true, v.Domain
 		}
@@ -333,7 +333,7 @@ func matchCookieDomains(domain string) (bool, string) {
 }
 
 func cookieSignature(r *http.Request, email, expires string) string {
-	hash := hmac.New(sha256.New, conf.Secret)
+	hash := hmac.New(sha256.New, config.Secret)
 	hash.Write([]byte(cookieDomain(r)))
 	hash.Write([]byte(email))
 	hash.Write([]byte(expires))
@@ -341,9 +341,9 @@ func cookieSignature(r *http.Request, email, expires string) string {
 }
 
 func cookieExpiry() time.Time {
-	return time.Now().Local().Add(conf.Lifetime)
+	return time.Now().Local().Add(config.Lifetime)
 }
 
 func buildCSRFCookieName(nonce string) string {
-	return conf.CSRFCookieName + "_" + nonce[:6]
+	return config.CSRFCookieName + "_" + nonce[:6]
 }

@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -8,12 +8,12 @@ import (
 )
 
 func main() {
-	conf := internal.NewGlobalConf()
-	logger := internal.NewDefaultLogger()
-	conf.Validate()
+	config := internal.NewGlobalConfig().Validate()
 	server := internal.NewServer()
+	logger := internal.GetLogger()
 	http.HandleFunc("/", server.DefaultHandler)
-	logger.WithField("conf", conf).Debug("Starting with conf")
-	logger.Infof("Listening on: %d", conf.Port)
-	logger.Info(http.ListenAndServe(fmt.Sprintf(":%d", conf.Port), nil))
+	// logger.WithField("config", config).Debug("Starting with config")
+	logger.Debugf("Starting server on %s", config)
+	logger.Infof("Listening on: %d", config.Port)
+	logger.Info(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil))
 }

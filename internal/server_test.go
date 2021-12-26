@@ -9,7 +9,7 @@ import (
 
 func TestServerDefaultHandler(t *testing.T) {
 	assert := assert.New(t)
-	conf = newDefaultConf()
+	config = newDefaultConfig()
 
 	rq := httptest.NewRequest("POST", "https://elmi.cn/should?ignore=me", nil)
 	rq.Header.Add("X-Forwarded-Method", "GET")
@@ -36,16 +36,16 @@ func TestServerDefaultHandler(t *testing.T) {
 }
 
 func setupTest() {
-	conf = newDefaultConf()
-	conf.LogLevel = "panic"
+	config = newDefaultConfig()
+	config.LogLevel = "panic"
 	logger = NewDefaultLogger()
 }
 
-func newDefaultConf() *Conf {
-	conf, _ = NewConf([]string{
+func newDefaultConfig() *Config {
+	config, _ = NewConfig([]string{
 		"--providers.google.client-id=testid",
 		"--providers.google.client-secret=testsecret",
 	})
-	conf.Providers.Google.Setup()
-	return conf
+	config.Providers.Google.Setup()
+	return config
 }

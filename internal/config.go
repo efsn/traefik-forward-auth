@@ -17,32 +17,28 @@ import (
 	"github.com/thomseddon/go-flags"
 )
 
-var conf *Conf
+var config *Config
 
-// Conf auth global configuration
-type Conf struct {
-	LogLevel  string `long:"log-level" env:"LOG_LEVEL" default:"warn" choice:"trace" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" description:"Log level"`
-	LogFormat string `long:"log-format" env:"LOG_FORMAT" default:"text" choice:"text" choice:"json" choice:"pretty" description:"Log format"`
-
+// Config auth global configuration
+type Config struct {
+	Path                   string               `long:"url-path" env:"URL_PATH" default:"/_oauth" description:"Callback URL Path"`
+	Port                   int                  `long:"port" env:"PORT" default:"5137" description:"Port to listen on"`
 	AuthHost               string               `long:"auth-host" env:"AUTH_HOST" description:"Single host to use when returning from 3rd party auth"`
-	Configure              func(s string) error `long:"conf" env:"CONF" description:"Path to conf file" json:"-"`
+	CookieName             string               `long:"cookie-name" env:"COOKIE_NAME" default:"_forward_auth" description:"Cookie Name"`
 	CookieDomains          []CookieDomain       `long:"cookie-domain" env:"COOKIE_DOMAIN" env-delim:"," description:"Domain to set auth cookie on, can be set multiple times"`
 	InsecureCookie         bool                 `long:"insecure-cookie" env:"INSECURE_COOKIE" description:"Use insecure cookies"`
-	CookieName             string               `long:"cookie-name" env:"COOKIE_NAME" default:"_forward_auth" description:"Cookie Name"`
 	CSRFCookieName         string               `long:"csrf-cookie-name" env:"CSRF_COOKIE_NAME" default:"_forward_auth_csrf" description:"CSRF Cookie Name"`
+	SecretString           string               `long:"secret" env:"SECRET" description:"Secret used for signing (required)" json:"-"`
+	LifetimeString         int                  `long:"lifetime" env:"LIFETIME" default:"43200" description:"Lifetime in seconds"`
+	LogoutRedirect         string               `long:"logout-redirect" env:"LOGOUT_REDIRECT" description:"URL to redirect to following logout"`
 	DefaultAction          string               `long:"default-action" env:"DEFAULT_ACTION" default:"auth" choice:"auth" choice:"allow" description:"Default action"`
 	DefaultProvider        string               `long:"default-provider" env:"DEFAULT_PROVIDER" default:"google" choice:"google" choice:"oidc" choice:"generic-oauth" description:"Default provider"`
 	Domains                CommaSeparatedList   `long:"domain" env:"DOMAIN" env-delim:"," description:"Only allow given email domains, can be set multiple times"`
-	LifetimeString         int                  `long:"lifetime" env:"LIFETIME" default:"43200" description:"Lifetime in seconds"`
-	LogoutRedirect         string               `long:"logout-redirect" env:"LOGOUT_REDIRECT" description:"URL to redirect to following logout"`
-	MatchWhitelistOrDomain bool                 `long:"match-whitelist-or-domain" env:"MATCH_WHITELIST_OR_DOMAIN" description:"Allow users that match *either* whitelist or domain (enabled by default in v3)"`
-	Path                   string               `long:"url-path" env:"URL_PATH" default:"/_oauth" description:"Callback URL Path"`
-	SecretString           string               `long:"secret" env:"SECRET" description:"Secret used for signing (required)" json:"-"`
 	Whitelist              CommaSeparatedList   `long:"whitelist" env:"WHITELIST" env-delim:"," description:"Only allow given email addresses, can be set multiple times"`
-	Port                   int                  `long:"port" env:"PORT" default:"5137" description:"Port to listen on"`
-
-	Providers provider.Providers `group:"providers" namespace:"providers" env-namespace:"PROVIDERS"`
-	Rules     map[string]*Rule   `long:"rule.<name>.<param>" description:"Rule definitions, param can be: \"action\", \"rule\" or \"provider\""`
+	MatchWhitelistOrDomain bool                 `long:"match-whitelist-or-domain" env:"MATCH_WHITELIST_OR_DOMAIN" description:"Allow users that match *either* whitelist or domain (enabled by default in v3)"`
+	Providers              provider.Providers   `group:"providers" namespace:"providers" env-namespace:"PROVIDERS"`
+	Rules                  map[string]*Rule     `long:"rule.<name>.<param>" description:"Rule definitions, param can be: \"action\", \"rule\" or \"provider\""`
+	Configure              func(s string) error `long:"config" env:"CONFIG" description:"Path to config file" json:"-"`
 
 	// Filled during transformations
 	Secret   []byte `json:"-"`
@@ -55,9 +51,16 @@ type Conf struct {
 	ClientIDLegacy      string        `long:"client-id" env:"CLIENT_ID" description:"DEPRECATED - Use \"providers.google.client-id\""`
 	ClientSecretLegacy  string        `long:"client-secret" env:"CLIENT_SECRET" description:"DEPRECATED - Use \"providers.google.client-id\""  json:"-"`
 	PromptLegacy        string        `long:"prompt" env:"PROMPT" description:"DEPRECATED - Use \"providers.google.prompt\""`
+
+	// Logger
+	LogLevel  string `long:"log-level" env:"LOG_LEVEL" default:"warn" choice:"trace" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" description:"Log level"`
+	LogFormat string `long:"log-format" env:"LOG_FORMAT" default:"text" choice:"text" choice:"json" choice:"pretty" description:"Log format"`
 }
 
-// Rule rule definition
+// CommaSeparatedList slice
+type CommaSeparatedList []string
+
+// Rule definition
 type Rule struct {
 	Action    string
 	Rule      string
@@ -66,9 +69,6 @@ type Rule struct {
 	Domains   CommaSeparatedList
 }
 
-// CommaSeparatedList slice
-type CommaSeparatedList []string
-
 // NewRule build rule
 func NewRule() *Rule {
 	return &Rule{
@@ -76,46 +76,48 @@ func NewRule() *Rule {
 	}
 }
 
-// NewGlobalConf build conf
-func NewGlobalConf() *Conf {
-	var err error
-	conf, err = NewConf(os.Args[1:])
-	if err != nil {
-		fmt.Printf("%+v\n", err)
-		os.Exit(1)
+// Validate rule validate action
+func (r *Rule) Validate(cfg *Config) error {
+	if r.Action != "auth" && r.Action != "allow" {
+		return errors.New("invalid rule action, must be \"auth\" or \"allow\"")
 	}
-	return conf
+	return cfg.setupProvider(r.Provider)
 }
 
-// NewParsedConf build parsed conf
-func NewParsedConf() *Conf {
-	var err error
-	conf, err = NewConf(os.Args[1:])
-	if err != nil {
-		fmt.Printf("%+v\n", err)
-		os.Exit(1)
-	}
-	return conf
+func (r *Rule) format() string {
+	return strings.ReplaceAll(r.Rule, "Host(", "HostRegexp(")
 }
 
-// NewConf build conf
-func NewConf(args []string) (*Conf, error) {
-	cf := &Conf{
+// NewGlobalConfig build global config
+func NewGlobalConfig() *Config {
+	var err error
+	config, err = NewConfig(os.Args[1:])
+
+	if err != nil {
+		logger.Errorf("%+v\n", err)
+		os.Exit(1)
+	}
+	config.Validate()
+	return config
+}
+
+// NewConfig build config
+func NewConfig(args []string) (*Config, error) {
+	cfg := &Config{
 		Rules: map[string]*Rule{},
 	}
 
-	if err := cf.parseFlags(args); err != nil {
-		return cf, err
+	if err := cfg.parseFlags(args); err != nil {
+		return cfg, err
 	}
 
-	// TODO: as log flags have now been parsed maybe we should return here so
-	// any further errors can be logged via logrus instead of printed?
-	err := cf.setup()
-	return cf, err
+	err := cfg.setup()
+	setupLogger(cfg)
+	return cfg, err
 }
 
-// Validate check conf
-func (r *Conf) Validate() {
+// Validate check config
+func (r *Config) Validate() *Config {
 	if len(r.Secret) == 0 {
 		logger.Fatal("\"secret\" option must be set")
 	}
@@ -129,10 +131,12 @@ func (r *Conf) Validate() {
 			logger.Fatal(err)
 		}
 	}
+
+	return r
 }
 
-// GetProvider get provider from conf
-func (r *Conf) GetProvider(name string) (provider.Provider, error) {
+// GetProvider get provider from config
+func (r *Config) GetProvider(name string) (provider.Provider, error) {
 	switch name {
 	case "google":
 		return &r.Providers.Google, nil
@@ -145,20 +149,12 @@ func (r *Conf) GetProvider(name string) (provider.Provider, error) {
 }
 
 // GetConfiguredProvider get provider
-func (r *Conf) GetConfiguredProvider(name string) (provider.Provider, error) {
+func (r *Config) GetConfiguredProvider(name string) (provider.Provider, error) {
 	if !r.providerConfigured(name) {
 		return nil, fmt.Errorf("Unconfigured provider: %s", name)
 	}
 
 	return r.GetProvider(name)
-}
-
-// Validate rule validate action
-func (r *Rule) Validate(cf *Conf) error {
-	if r.Action != "auth" && r.Action != "allow" {
-		return errors.New("invalid rule action, must be \"auth\" or \"allow\"")
-	}
-	return cf.setupProvider(r.Provider)
 }
 
 // UnmarshalFlag unmarshal flag
@@ -172,16 +168,12 @@ func (r *CommaSeparatedList) MarshalFlag() (string, error) {
 	return strings.Join(*r, ","), nil
 }
 
-func (r *Conf) String() string {
-	jsonConf, _ := json.Marshal(r)
-	return string(jsonConf)
+func (r *Config) String() string {
+	jsonCfg, _ := json.Marshal(r)
+	return string(jsonCfg)
 }
 
-func (r *Rule) formattedRule() string {
-	return strings.ReplaceAll(r.Rule, "Host(", "HostRegexp(")
-}
-
-func (r *Conf) setup() error {
+func (r *Config) setup() error {
 	for _, rule := range r.Rules {
 		if rule.Provider == "" {
 			rule.Provider = r.DefaultProvider
@@ -190,7 +182,7 @@ func (r *Conf) setup() error {
 
 	// Backwards compatability
 	if r.CookieSecretLegacy != "" && r.SecretString == "" {
-		fmt.Println("cookie-secret conf option is deprecated, please use secret")
+		logger.Warn("DEPRECATED: Use \"secret\" instead of \"cookie-secret\"")
 		r.SecretString = r.CookieSecretLegacy
 	}
 
@@ -204,13 +196,13 @@ func (r *Conf) setup() error {
 	}
 
 	if r.PromptLegacy != "" {
-		fmt.Println("prompt conf option is deprecated, please use providers.google.prompt")
+		logger.Warn("DEPRECATED: Use \"providers.google.prompt\" instead of \"prompt\"")
 		r.Providers.Google.Prompt = r.PromptLegacy
 	}
 	// end: refactor to profile default provider
 
 	if r.CookieSecureLegacy != "" {
-		fmt.Println("cookie-secure conf option is deprecated, please use insecure-cookie")
+		logger.Warn("DEPRECATED: Use \"insecure-cookie\" instead of \"cookie-secure\"")
 		secure, err := strconv.ParseBool(r.CookieSecureLegacy)
 		if err != nil {
 			return err
@@ -219,7 +211,7 @@ func (r *Conf) setup() error {
 	}
 
 	if len(r.CookieDomainsLegacy) > 0 {
-		fmt.Println("cookie-secure conf option is deprecated, please use insecure-cookie")
+		logger.Warn("DEPRECATED: Use \"cookie-domain\" instead of \"cookie-domains\"")
 		r.CookieDomains = append(r.CookieDomains, r.CookieDomainsLegacy...)
 	}
 
@@ -233,7 +225,7 @@ func (r *Conf) setup() error {
 	return nil
 }
 
-func (r *Conf) parseFlags(args []string) error {
+func (r *Config) parseFlags(args []string) error {
 	p := flags.NewParser(r, flags.Default|flags.IniUnknownOptionHandler)
 	p.UnknownOptionHandler = r.parseUnknownFlag
 
@@ -245,7 +237,7 @@ func (r *Conf) parseFlags(args []string) error {
 			if convertErr != nil {
 				return err
 			}
-			fmt.Println("conf format deprecated, please use ini format")
+			logger.Warn("DEPRECATED: Use ini file instead of legacy config file")
 			return i.Parse(converted)
 		}
 		return err
@@ -257,7 +249,7 @@ func (r *Conf) parseFlags(args []string) error {
 	return nil
 }
 
-func (r *Conf) parseUnknownFlag(opt string, arg flags.SplitArgument, args []string) ([]string, error) {
+func (r *Config) parseUnknownFlag(opt string, arg flags.SplitArgument, args []string) ([]string, error) {
 	parts := strings.Split(opt, ".")
 	if len(parts) == 3 && parts[0] == "rule" {
 		name := parts[1]
@@ -329,7 +321,7 @@ func convertLegacyToIni(name string) (io.Reader, error) {
 	return bytes.NewReader(legacyFileFormat.ReplaceAll(b, []byte("$1=$2"))), nil
 }
 
-func (r *Conf) providerConfigured(name string) bool {
+func (r *Config) providerConfigured(name string) bool {
 	if name == r.DefaultProvider {
 		return true
 	}
@@ -343,7 +335,7 @@ func (r *Conf) providerConfigured(name string) bool {
 	return false
 }
 
-func (r *Conf) setupProvider(name string) error {
+func (r *Config) setupProvider(name string) error {
 	p, err := r.GetProvider(name)
 	if err != nil {
 		return err
